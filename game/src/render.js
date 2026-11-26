@@ -10,6 +10,7 @@
 // trauma-based and added on top of the follow, never inside it.
 import * as THREE from 'three';
 import { RUNWAY, RING_RADIUS } from './config.js';
+import { buildPlane } from './plane.js';
 
 const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 
@@ -19,108 +20,9 @@ function hash2(x, z) {
   return s - Math.floor(s);
 }
 
-function buildPlaneMesh() {
-  const orange = new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.45, metalness: 0.15, flatShading: true });
-  const white = new THREE.MeshStandardMaterial({ color: 0xf5f2ea, roughness: 0.5, metalness: 0.1, flatShading: true });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x22262b, roughness: 0.4, metalness: 0.4, flatShading: true });
-  const red = new THREE.MeshStandardMaterial({ color: 0xc22e24, roughness: 0.5, metalness: 0.15, flatShading: true });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x16324a, roughness: 0.08, metalness: 0.85, flatShading: true });
-  const group = new THREE.Group();
-  const add = (mesh, x = 0, y = 0, z = 0) => {
-    mesh.position.set(x, y, z);
-    group.add(mesh);
-    return mesh;
-  };
-
-  // Fuselage: a tapered tube, a rounded nose cone and a tail cone.
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.82, 4.6, 12), orange);
-  body.geometry.rotateX(Math.PI / 2);
-  add(body, 0, 0, 0.4);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.5, 12), orange);
-  nose.geometry.rotateX(Math.PI / 2);
-  add(nose, 0, 0, 3.45);
-  const tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.82, 2.2, 12), red);
-  tailCone.geometry.rotateX(-Math.PI / 2);
-  add(tailCone, 0, 0, -3.0);
-
-  // Livery: a white cheatline stripe along each side of the fuselage.
-  for (const side of [-1, 1]) {
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 4.4), white);
-    add(stripe, side * 0.78, 0.12, 0.4);
-  }
-  // Glossy two-seat canopy bubble.
-  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.78, 16, 12), glass);
-  cockpit.scale.set(0.95, 0.68, 1.8);
-  add(cockpit, 0, 0.78, 1.2);
-
-  // Wings: low wing, two halves with a touch of dihedral, orange tips.
-  for (const side of [-1, 1]) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.28, 2.6), white);
-    wing.rotation.z = -side * 0.05;
-    add(wing, side * 3.3, -0.15, 0.6);
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 2.6), orange);
-    tip.rotation.z = -side * 0.05;
-    add(tip, side * 6.85, -0.02, 0.6);
-    // Navigation light on the tip: red port, green starboard.
-    const nav = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 8, 6),
-      new THREE.MeshBasicMaterial({ color: side < 0 ? 0xff2222 : 0x22ff66 }),
-    );
-    add(nav, side * 7.3, -0.02, 0.6);
-  }
-
-  // Tail: white stabiliser with orange tips, orange fin with a white band.
-  const tailplane = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.2, 1.6), white);
-  add(tailplane, 0, 0.25, -3.6);
-  for (const side of [-1, 1]) {
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.22, 1.6), orange);
-    add(tip, side * 2.5, 0.25, -3.6);
-  }
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.9, 1.8), orange);
-  add(fin, 0, 1.0, -3.6);
-  const finBand = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.4, 1.8), white);
-  add(finBand, 0, 1.35, -3.6);
-
-  // Propeller: orange spinner, two dark blades, and a translucent blur disc
-  // that fades in with throttle.
-  const prop = new THREE.Group();
-  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.9, 10), orange);
-  spinner.geometry.rotateX(Math.PI / 2);
-  spinner.position.z = 0.4;
-  prop.add(spinner);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.34, 4.8, 0.12), dark);
-  prop.add(blade);
-  const blurDisc = new THREE.Mesh(
-    new THREE.CircleGeometry(2.45, 28),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  blurDisc.position.z = 0.05;
-  prop.add(blurDisc);
-  prop.position.z = 4.35;
-  group.add(prop);
-
-  // Landing gear: two sprung mains with hubcaps and a small tail wheel.
-  for (const side of [-1, 1]) {
-    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6), dark);
-    add(strut, side * 1.4, -0.85, 1.3);
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.34, 12), dark);
-    wheel.geometry.rotateZ(Math.PI / 2);
-    add(wheel, side * 1.4, -1.38, 1.3);
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.36, 8), white);
-    hub.geometry.rotateZ(Math.PI / 2);
-    add(hub, side * 1.4, -1.38, 1.3);
-  }
-  const tailStrut = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.7, 6), dark);
-  add(tailStrut, 0, -0.75, -3.5);
-  const tailWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.2, 8), dark);
-  tailWheel.geometry.rotateZ(Math.PI / 2);
-  add(tailWheel, 0, -1.05, -3.5);
-
-  group.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
-  return { group, prop, blurDisc };
-}
+// The plane model lives in ./plane.js now (buildPlane): a detailed
+// primitive-built courier with a transparent canopy, tapered wings,
+// hinged control surfaces and spatted gear.
 
 export function createRenderer(canvas, terrain, rings) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -314,7 +216,7 @@ export function createRenderer(canvas, terrain, rings) {
     return mesh;
   });
 
-  const { group: plane, prop, blurDisc } = buildPlaneMesh();
+  const { group: plane, prop, blurDisc, controls } = buildPlane(THREE);
   scene.add(plane);
 
   const camPos = V3(-205, 22.5, 0);
@@ -348,6 +250,12 @@ export function createRenderer(canvas, terrain, rings) {
     plane.rotation.set(-s.pitch, s.heading, -s.bank);
     prop.rotation.z += dt * (4 + s.throttle * 42);
     blurDisc.material.opacity = 0.05 + s.throttle * 0.1;
+    // Hinged control surfaces deflect a touch with the bank and pitch, so
+    // the plane reads as flying, not posed.
+    if (controls.aileronL) controls.aileronL.rotation.x = -s.bank * 0.35;
+    if (controls.aileronR) controls.aileronR.rotation.x = s.bank * 0.35;
+    if (controls.elevator) controls.elevator.rotation.x = -s.pitch * 0.3;
+    if (controls.rudder) controls.rudder.rotation.y = -s.bank * 0.25;
 
     // The sun and its shadow camera travel with the plane, so the shadows
     // stay crisp wherever the mission goes.
