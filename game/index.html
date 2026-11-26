@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Island Courier — Best Flight Game</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a1a26; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game { display: block; width: 100%; height: 100%; }
+  .panel { position: absolute; background: rgba(6, 18, 28, 0.55); border-radius: 10px; color: #fff; padding: 10px 14px; }
+  .label { font-size: 12px; letter-spacing: 2px; color: #ffd27a; font-weight: 700; }
+  .big { font-size: 34px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .unit { font-size: 13px; color: #cfe6f2; font-weight: 600; }
+  #hud-left { top: 14px; left: 14px; display: flex; gap: 22px; }
+  #hud-left .cell { text-align: left; }
+  #hud-top { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 340px; }
+  #ring-label { font-size: 20px; font-weight: 800; color: #ffb020; }
+  #compass { margin-top: 6px; height: 22px; overflow: hidden; position: relative; border-top: 2px solid rgba(255,255,255,0.7); }
+  #compass-strip { position: absolute; top: 2px; left: 0; height: 20px; white-space: nowrap; font-size: 14px; font-weight: 700; }
+  #compass-strip span { display: inline-block; width: 120px; text-align: center; }
+  #hud-right { top: 14px; right: 14px; text-align: right; min-width: 190px; }
+  #fuel-bar { width: 170px; height: 14px; background: rgba(255,255,255,0.25); border-radius: 7px; overflow: hidden; margin-top: 4px; }
+  #fuel-fill { height: 100%; width: 100%; background: #37c978; border-radius: 7px; }
+  #fuel-fill.low { background: #ff5340; }
+  #score-line { font-size: 18px; font-weight: 700; margin-top: 6px; }
+  #horizon-box { left: 14px; bottom: 14px; padding: 8px; }
+  #horizon { width: 110px; height: 110px; border-radius: 50%; overflow: hidden; position: relative; border: 2px solid rgba(255,255,255,0.85); background: #7ec8ee; }
+  #horizon-inner { position: absolute; left: -55px; top: -55px; width: 220px; height: 220px; }
+  #horizon-sky { position: absolute; left: 0; top: 0; width: 220px; height: 110px; background: #7ec8ee; }
+  #horizon-ground { position: absolute; left: 0; top: 110px; width: 220px; height: 110px; background: #8a6b46; }
+  #horizon-mark { position: absolute; left: 50%; top: 50%; width: 34px; height: 4px; margin: -2px 0 0 -17px; background: #fff; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+  #message { left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 22px; font-weight: 800; color: #ffb020; background: rgba(6,18,28,0.6); padding: 8px 18px; border-radius: 10px; }
+  #flash { position: absolute; inset: 0; pointer-events: none; z-index: 5; opacity: 0; transition: opacity 0.55s ease-out; background: radial-gradient(circle at 50% 45%, rgba(255,190,90,0.5) 0%, rgba(255,120,30,0.22) 30%, rgba(255,120,30,0) 60%); }
+  #targets-line { font-size: 16px; font-weight: 700; margin-top: 4px; color: #ffd27a; }
+  #controls-hint { right: 14px; bottom: 14px; font-size: 13px; line-height: 1.5; color: #dceef7; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(4, 14, 22, 0.55); color: #fff; text-align: center; z-index: 10; }
+  .overlay h1 { font-size: 52px; margin: 0 0 8px; letter-spacing: 1px; }
+  .overlay h2 { font-size: 40px; margin: 0 0 8px; }
+  .overlay p { font-size: 19px; margin: 6px 0; max-width: 620px; line-height: 1.5; }
+  .overlay .keys { font-size: 16px; color: #ffd27a; font-weight: 700; }
+  .overlay .cta { margin-top: 18px; font-size: 22px; font-weight: 800; color: #ffb020; }
+  .hidden { display: none !important; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud-left" class="panel">
+  <div class="cell"><div class="label">ALT</div><div class="big"><span id="alt">0</span> <span class="unit">FT</span></div></div>
+  <div class="cell"><div class="label">SPD</div><div class="big"><span id="spd">0</span> <span class="unit">KT</span></div></div>
+  <div class="cell"><div class="label">HDG</div><div class="big"><span id="hdg">090</span><span class="unit">&deg;</span></div></div>
+</div>
+
+<div id="hud-top" class="panel">
+  <div id="ring-label">RING 1/5</div>
+  <div id="compass"><div id="compass-strip"></div></div>
+</div>
+
+<div id="hud-right" class="panel">
+  <div class="label">FUEL</div>
+  <div id="fuel-bar"><div id="fuel-fill"></div></div>
+  <div id="score-line">SCORE <span id="score">0</span> &nbsp;•&nbsp; <span id="time">0:00</span></div>
+  <div id="targets-line">TARGETS <span id="targets">0/3</span></div>
+</div>
+
+<div id="horizon-box" class="panel">
+  <div id="horizon"><div id="horizon-inner"><div id="horizon-sky"></div><div id="horizon-ground"></div></div><div id="horizon-mark"></div></div>
+</div>
+
+<div id="message" class="hidden"></div>
+<div id="flash"></div>
+
+<div id="controls-hint" class="panel">W/S throttle &nbsp;•&nbsp; A/D or &larr;/&rarr; turn<br>&uarr;/&darr; pitch &nbsp;•&nbsp; mouse steers &nbsp;•&nbsp; SPACE / click fire &nbsp;•&nbsp; P pause</div>
+
+<div id="screen-title" class="overlay">
+  <h1>ISLAND COURIER</h1>
+  <p>Fly the mail plane across the tropical islands. Pass all 5 rings, then land on the island runway before your fuel runs out. Blast the red target balloons on the way for bonus points.</p>
+  <p class="keys">W/S throttle &nbsp;•&nbsp; A/D turn &nbsp;•&nbsp; Arrow keys pitch &nbsp;•&nbsp; Mouse steers &nbsp;•&nbsp; SPACE / click fire &nbsp;•&nbsp; P pause</p>
+  <p class="cta">Press SPACE or click to take off</p>
+</div>
+
+<div id="screen-pause" class="overlay hidden">
+  <h2>PAUSED</h2>
+  <p>Press P or Space to keep flying.</p>
+</div>
+
+<div id="screen-over" class="overlay hidden">
+  <h2 id="over-title">CRASHED</h2>
+  <p id="over-lines"></p>
+  <p class="cta">Press R or click to fly again</p>
+</div>
+
+<div id="screen-complete" class="overlay hidden">
+  <h2>MISSION COMPLETE</h2>
+  <p id="complete-lines"></p>
+  <p class="cta">Press R or click to fly again</p>
+</div>
+
+<div id="status" aria-live="polite"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
