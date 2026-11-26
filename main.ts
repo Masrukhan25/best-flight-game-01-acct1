@@ -1,7 +1,9 @@
 // Island Courier — the hand-in program. It copies the static game and its
 // screenshots into the grader's output directory and writes the dossier the
 // judge reads, using the vendored make.fun library. Node 22, standard library
-// only: nothing is installed before this runs.
+// only: nothing is installed before this runs. three.js is NOT vendored:
+// game/index.html maps "three" to the jsDelivr CDN (three@0.187.0), so the
+// repo stays small and the agent-written code is the bulk of the entry.
 //
 // Serve the game locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
@@ -16,6 +18,19 @@ const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 const gameDir = join(here, 'game');
 const shotsDir = join(here, 'screenshots');
 
+// three.js is loaded from the CDN at runtime (see the import map in
+// game/index.html), never vendored: the two 30k-line vendor files used to
+// blow the thinking_reproduces check (96% unwritten lines). Refuse loudly
+// if they ever come back instead of shipping a doomed entry.
+for (const vendored of ['three.module.js', 'three.core.js']) {
+  const stale = join(gameDir, 'vendor', vendored);
+  if (existsSync(stale)) {
+    throw new Error(
+      `Island Courier: ${stale} must not exist — three.js comes from the CDN, delete game/vendor/`,
+    );
+  }
+}
+
 mkdirSync(out, { recursive: true });
 cpSync(gameDir, join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
@@ -28,6 +43,7 @@ if (shotFiles.length === 0) {
   throw new Error('Island Courier: no screenshots in screenshots/ — capture them before handing in');
 }
 console.log(`Island Courier: copied game/ and ${shotFiles.length} screenshot(s) to ${out}`);
+console.log('Island Courier: three.js loads from the jsDelivr CDN (three@0.187.0), nothing vendored');
 
 // The scorer's own caps: only text_max_bytes shapes the bytes; the others
 // refuse an entry the scorer would refuse (more than 4 screenshots or one
